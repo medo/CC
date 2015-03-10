@@ -7,6 +7,21 @@ class FeatureExtractor:
     self.image = image
     self.memory = memory
 
+  def create_dense_descriptor(self):
+    if self.memory==False:
+        imgGray=cv.imread(self.image.get_path(),0)
+        detector=cv.FeatureDetector_create("Dense")
+        points=detector.detect(imgGray) #points
+        extractor = cv.DescriptorExtractor_create("SIFT")
+        (points, descriptors) = extractor.compute(imgGray,points)
+        return descriptors
+    else:
+        detector=cv.FeatureDetector_create("Dense")
+        points=detector.detect(self.image) #points
+        extractor = cv.DescriptorExtractor_create("SIFT")
+        (points, descriptors) = extractor.compute(self.image,points)
+        return descriptors
+
   def extract_feature_vector(self):
     if self.memory==False:
         img = cv.imread(self.image.get_path())
@@ -22,6 +37,3 @@ class FeatureExtractor:
         sift = cv.SIFT()
         kp, des = sift.detectAndCompute(gray_equalized, None)
     return des
-    
-
-    

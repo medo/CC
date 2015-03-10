@@ -39,6 +39,10 @@ def __get_image_features(img_file):
     extractor = FeatureExtractorFactory.newInstance(Image.from_local_directory(img_file),False)
     return extractor.extract_feature_vector()
 
+def __get_image_dense_features(img):
+    extractor = FeatureExtractorFactory.newInstance(img,True)
+    return extractor.create_dense_descriptor()
+
 def __get_image_features_memory(img):
     extractor = FeatureExtractorFactory.newInstance(img,True)
     return extractor.extract_feature_vector()
@@ -93,8 +97,23 @@ def vocabulary(path, output_file):
                 print i
                 count += 1
                 imgfile = "%s/%s" % (path, i)
-                vector = __get_image_features(imgfile)
-                cluster.add_to_cluster(vector)
+                image = cv2.imread(imgfile,0)
+                size=10
+                rows = len(image)
+                cols = len(image[0])
+                rows = rows/10
+                rows = rows*10
+                cols = cols/10
+                cols = cols*10
+                image = image[:rows, :cols]
+                blocks = map(lambda x : np.split(x, image.shape[1]/size, 1), np.split(image, image.shape[0]/size, 0))
+                r=len(image)/size
+                c=len(image[0])/size
+                for x in xrange(0,r):
+                    for y in xrange(0,c):
+                        window = blocks[x][y]
+                        vector = __get_image_dense_features(window)
+                        cluster.add_to_cluster(vector)
             except Exception, Argument:
                 print "Exception happened: ", Argument 
 
@@ -183,7 +202,7 @@ def training(path, output_file, vocab_file, dictionary_output_file):
     __check_dir_condition(path)
     __check_file_condition(vocab_file)
     
-    __init_histogram_calculator(vocab_file)
+    __init_histogram_calculator(vocab_file)#gave histCalculator the centroids
     
     label = 0
     labelsVector = None
@@ -385,7 +404,7 @@ def main(args):
     except getopt.GetoptError, e:
         print str(e)
         sys.exit(2)
-	
-	
+    
+    
 if __name__ == "__main__":
     main(sys.argv[1:])
