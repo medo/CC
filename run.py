@@ -39,6 +39,10 @@ def __get_image_features(img_file):
     extractor = FeatureExtractorFactory.newInstance(Image.from_local_directory(img_file),False)
     return extractor.extract_feature_vector()
 
+def __get_image_dense_features(img):
+    extractor = FeatureExtractorFactory.newInstance(img,True)
+    return extractor.create_dense_descriptor()
+
 def __get_image_features_memory(img):
     extractor = FeatureExtractorFactory.newInstance(img,True)
     return extractor.extract_feature_vector()
@@ -93,7 +97,8 @@ def vocabulary(path, output_file):
                 print i
                 count += 1
                 imgfile = "%s/%s" % (path, i)
-                vector = __get_image_features(imgfile)
+                image = cv2.imread(imgfile,0)
+                vector = __get_image_dense_features(image)
                 cluster.add_to_cluster(vector)
             except Exception, Argument:
                 print "Exception happened: ", Argument 
@@ -155,10 +160,10 @@ def evaluating(path, vocab_file, classifier_file, dictionary_file):
                             quad2 = image[:((rows)/2),(cols/2)+1:]
                             quad3 = image[(rows/2):,:((cols+1)/2)]
                             quad4 = image[(rows/2):,((cols+1)/2):]
-                        vector1 = __get_image_features_memory(quad1)
-                        vector2 = __get_image_features_memory(quad2)
-                        vector3 = __get_image_features_memory(quad3)
-                        vector4 = __get_image_features_memory(quad4)
+                        vector1 = __get_image_dense_features(quad1)
+                        vector2 = __get_image_dense_features(quad2)
+                        vector3 = __get_image_dense_features(quad3)
+                        vector4 = __get_image_dense_features(quad4)
                         bow1 = histCalculator.hist(vector1)
                         bow2 = histCalculator.hist(vector2)
                         bow3 = histCalculator.hist(vector3)
@@ -227,10 +232,10 @@ def training(path, output_file, vocab_file, dictionary_output_file):
                             quad2 = image[:((rows)/2),(cols/2)+1:]
                             quad3 = image[(rows/2):,:((cols+1)/2)]
                             quad4 = image[(rows/2):,((cols+1)/2):]
-                        vector1 = __get_image_features_memory(quad1)
-                        vector2 = __get_image_features_memory(quad2)
-                        vector3 = __get_image_features_memory(quad3)
-                        vector4 = __get_image_features_memory(quad4)
+                        vector1 = __get_image_dense_features(quad1)
+                        vector2 = __get_image_dense_features(quad2)
+                        vector3 = __get_image_dense_features(quad3)
+                        vector4 = __get_image_dense_features(quad4)
                         bow1 = histCalculator.hist(vector1)
                         bow2 = histCalculator.hist(vector2)
                         bow3 = histCalculator.hist(vector3)
@@ -385,7 +390,7 @@ def main(args):
     except getopt.GetoptError, e:
         print str(e)
         sys.exit(2)
-	
-	
+    
+    
 if __name__ == "__main__":
     main(sys.argv[1:])
