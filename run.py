@@ -4,7 +4,7 @@ from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import label_binarize
 import numpy as np
 import getopt, sys, os, traceback
-import cv2
+import cv2, csv, subprocess
 
 from FeatureExtractorFactory import FeatureExtractorFactory
 from Image import Image
@@ -58,6 +58,13 @@ def __init_bow_vector_calculator():
     global bowCalculator 
     bowCalculator = BagOfWordsVectorCalculator()
 
+def __calculate_merged_histogram(image,numberOfSectors):
+    dividedImage=EvenImageDivider(image,numberOfSectors)
+    for i in xrange(1,(dividedImage.n + 1)):
+        sectorOfFeatures = __get_image_features_memory(dividedImage.divider(i))
+        bow = histCalculator.hist(sectorOfFeatures)
+        bowCalculator.createMergedBow(bow)
+
 def __load_classifier(classifier_file):
     print ("Loading classifier from: %s" % classifier_file)
     global classifier 
@@ -85,6 +92,27 @@ def __save_categories_dictionary(output_file):
     print ("Saving Dictionary in: %s" % output_file)        
     classesHashtable.saveToFile(output_file)
 
+def __get_image_features_and_cluster_from_csv(path,fileName):
+    with open(("%s/%s" % (path, fileName))) as fileReader:
+        reader = csv.reader(fileReader, delimiter=' ')
+        for i in reader:
+            imgfile = i[0].split("/")
+            imgfile = imgfile[len(imgfile)-1]
+            print imgfile
+            vector = __get_image_features(i[0])
+            cluster.add_to_cluster(vector)
+
+def __load_image_from_csv():
+    pass
+
+def __get_image_name_from_path(path):
+    imgName = path.split("/")
+    return imgName[len(imgName)-1]
+
+def __get_category_name_from_file_name(file_name):
+    categoryName = file_name.split("_")
+    categoryName = categoryName[1].split(".csv")[0]
+    return categoryName
 
 # Main functions
 
@@ -92,6 +120,7 @@ def vocabulary(path, output_file):
     __check_dir_condition(path)
     
     count = 0
+    global cluster
     cluster = KMeanCluster(100)
     for i in os.listdir(path):
         if i.endswith(".jpg") or i.endswith(".png"):
@@ -104,9 +133,15 @@ def vocabulary(path, output_file):
             except Exception, Argument:
                 print "Exception happened: ", Argument 
 
-    if count == 0:
-        print ("%s contains no png/jpg images" % (path))
-        return
+        if i.endswith(".csv"):
+            try:
+                count += 1
+                __get_image_features_and_cluster_from_csv(path,i)
+            except Exception, Argument:
+                print "Exception happened: ", Argument
+    #if count == 0:
+        #print ("%s contains no png/jpg images" % (path))
+        #return
 
     result = cluster.cluster()
     SIFTManager.save_to_local_file(result, output_file)
@@ -121,8 +156,10 @@ def evaluating(path, vocab_file, classifier_file, dictionary_file):
     __init_histogram_calculator(vocab_file)  
     __load_classifier(classifier_file)    
     __load_category_dictionary(dictionary_file)
-
+    bowVector = None
     for d in os.listdir(path):
+        if d.startswith("."):
+            continue
         subdir = ("%s/%s" % (path, d))
         if os.path.isdir(subdir):
             print ("Evaluating label '%s'" % d)
@@ -152,6 +189,39 @@ def evaluating(path, vocab_file, classifier_file, dictionary_file):
                         traceback.print_stack()
             
             print ("Label %s results:\n%d were wrongly predicted from %d" % (d, wrongPredictions, totalPredictions))
+        else:
+
+            break
+    for f in os.listdir(path):
+        if f.endswith(".csv"):
+            try:
+                categoryName = __get_category_name_from_file_name(f)
+                print ("Evaluating label '%s'" % categoryName)
+                wrongPredictions = 0
+                totalPredictions = 0
+                label = __check_label_existence(categoryName)
+                with open(("%s/%s" % (path, f))) as fileReader:
+                    reader = csv.reader(fileReader, delimiter=' ')
+                    for i in reader:
+                        imgName = __get_image_name_from_path(i[0])
+                        print imgName
+                        image = __load_image(i[0])
+                        __calculate_merged_histogram(image,4)
+                        bow = __from_array_to_matrix(bowCalculator.getMergedBow())
+                        totalPredictions += 1
+                        correctResponse = classifier.evaluateData(bow, label)
+                        #print "Confidence score = is", classifier.predict(bow, True)
+                        #print "Are they equivalent", classifier.predict(bow,True)== classifier.predict(bow)
+                        if not correctResponse:
+                            wrongPredictions += 1
+                        bowCalculator.emptyMergedBow()
+
+            except Exception, Argument:
+                print "Exception happened: ", Argument
+                traceback.print_stack()
+                print ("Label %s results:\n%d were wrongly predicted from %d" % (d, wrongPredictions, totalPredictions))
+
+
     
     print ("Final results:\n%d were wrongly predicted from %d" % (classifier.getErrorCount(), classifier.getEvaluationsCount()))
     
@@ -169,12 +239,14 @@ def training(path, output_file, vocab_file, dictionary_output_file):
     classesHashtable = CategoriesManager()
     
     for d in os.listdir(path):
+        if d.startswith("."):
+            continue
         subdir = ("%s/%s" % (path, d))
         if os.path.isdir(subdir):
+            print "You're training using a regular dataset"
             print ("Training label '%s'" % d)
             classesHashtable.addClass(label, d)
             correctLabel = classesHashtable.getClassNumber(d)
-            
             for f in os.listdir(subdir):
                 if f.endswith(".jpg") or f.endswith(".png"):
                     try:
@@ -182,11 +254,7 @@ def training(path, output_file, vocab_file, dictionary_output_file):
                         imgfile = "%s/%s" % (subdir, f)
                         image = __load_image(imgfile)
 
-                        dividedImage=EvenImageDivider(image,4)
-                        for i in xrange(1,(dividedImage.n + 1)):
-                            sectorOfFeatures = __get_image_features_memory(dividedImage.divider(i))
-                            bow = histCalculator.hist(sectorOfFeatures)
-                            bowCalculator.createMergedBow(bow)
+                        __calculate_merged_histogram(image,4)
             
                         bow = __from_array_to_matrix(bowCalculator.getMergedBow())
                         bowCalculator.createBowVector(bow)
@@ -203,9 +271,41 @@ def training(path, output_file, vocab_file, dictionary_output_file):
             
             if label == correctLabel:
                 label += 1
+
+        else:
+            print "You're training using a Pascal dataset"
+            break
+
+    classesHashtable.loadFromFile(dictionary_output_file)
+    for f in os.listdir(path):
+        if f.endswith(".csv"):
+            try:
+                categoryName = __get_category_name_from_file_name(f)
+                print ("Training label '%s'" % categoryName)
+                correctLabel = classesHashtable.getClassNumber(categoryName)
+
+                with open(("%s/%s" % (path, f))) as fileReader:
+                    reader = csv.reader(fileReader, delimiter=' ')
+                    for i in reader:
+                        imgName = __get_image_name_from_path(i[0])
+                        print imgName
+                        image = __load_image(i[0])                      
+                        __calculate_merged_histogram(image,4)
+                        bow = __from_array_to_matrix(bowCalculator.getMergedBow())
+                        bowCalculator.createBowVector(bow)
+
+                        if labelsVector == None:
+                            labelsVector = np.array(correctLabel)
+                        else:
+                            labelsVector = np.insert(labelsVector, labelsVector.size, correctLabel)
+
+                        bowCalculator.emptyMergedBow()
+            except Exception, Argument:
+                print "Exception happened: ", Argument
+                traceback.print_stack()
     try:
         print "Training Classifier"
-        
+            
         global trainingDataMat
         trainingDataMat = __from_array_to_matrix(bowCalculator.getBowVector()) 
         global trainingLabelsMat
@@ -213,7 +313,7 @@ def training(path, output_file, vocab_file, dictionary_output_file):
 
         print ("trainingDataMat", trainingDataMat)
         print ("trainingLabelsMat", trainingLabelsMat)
-               
+                   
         __create_and_train_classifier()   
         __save_classifier(output_file)
         __save_categories_dictionary(dictionary_output_file)
@@ -221,7 +321,6 @@ def training(path, output_file, vocab_file, dictionary_output_file):
     except Exception, Argument:
         print "Exception happened: ", Argument
         traceback.print_stack()
-    
 
 def get_precision_scores(path, vocab_file, classifier_file, dictionary_file):
     __check_dir_condition(path)
@@ -337,7 +436,7 @@ def main(args):
     except getopt.GetoptError, e:
         print str(e)
         sys.exit(2)
-	
-	
+    
+    
 if __name__ == "__main__":
     main(sys.argv[1:])

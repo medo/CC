@@ -41,3 +41,10 @@ class SVMClassifier(Classifier):
 			return response
 		except Exception, Argument:
 			print "Exception happened: ", Argument
+
+	def calculateScore(self, testData,returnDFVal=True):
+		try:
+			response = self.classifier.predict(testData,returnDFVal)
+			return response
+		except Exception, Argument:
+			print "Exception happened: ", Argument
