@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-from sklearn.metrics import average_precision_score
-from sklearn.preprocessing import label_binarize
 import numpy as np
 import getopt, sys, os, traceback
 import cv2
@@ -250,80 +248,6 @@ def training(path, output_file, vocab_file, dictionary_output_file):
     except Exception, Argument:
         print "Exception happened: ", Argument
         traceback.print_stack()
-    
-
-def get_precision_scores(path, vocab_file, classifier_file, dictionary_file):
-    __check_dir_condition(path)
-    __check_file_condition(vocab_file)
-    __check_file_condition(classifier_file)
-    __check_file_condition(dictionary_file)
-    
-    __init_histogram_calculator(vocab_file)  
-    __load_classifier(classifier_file)    
-    __load_category_dictionary(dictionary_file)
-    
-    categories_number = classesHashtable.getCategoriesCount()
-    true_values_arr = [None] * (categories_number + 1)
-    score_values_arr = [None] * (categories_number + 1)
-    
-    for d in os.listdir(path):
-        subdir = ("%s/%s" % (path, d))
-        if os.path.isdir(subdir):
-            print ("\n\nEvaluating label '%s'" % d)
-            label = __check_label_existence(d)
-            if label == None:
-                continue
-            
-            for f in os.listdir(subdir):
-                if f.endswith(".jpg") or f.endswith(".png"):
-                    try:
-                        print "\n" + f
-                        imgfile = "%s/%s" % (subdir, f)
-                        vector = __get_image_features(imgfile)
-                        bow = histCalculator.hist(vector)
-                        bow = __from_array_to_matrix(bow)
-                        res = classifier.predict(bow)
-                        
-                        label = int(round(label))
-                        res = int(round(res))
-                        
-                        for i in range(categories_number):
-                            res_value = 1 if i == res else 0
-                            label_value = 1 if i == label else 0
-                            
-                            if score_values_arr[i] == None:
-                                score_values_arr[i] = np.array(res_value)
-                                true_values_arr[i] = np.array(label_value)
-                            else:
-                                score_values_arr[i] = np.insert(score_values_arr[i], score_values_arr[i].size, res_value)
-                                true_values_arr[i] = np.insert(true_values_arr[i], true_values_arr[i].size, label_value)
-                             
-                        if score_values_arr[categories_number] == None:
-                            score_values_arr[categories_number] = np.array(res)
-                            true_values_arr[categories_number] = np.array(label)
-                        else:
-                            score_values_arr[categories_number] = np.insert(score_values_arr[categories_number], 
-                                                                            score_values_arr[categories_number].size, res)
-                            true_values_arr[categories_number] = np.insert(true_values_arr[categories_number], 
-                                                                            true_values_arr[categories_number].size, label)
-                                                    
-                    except Exception, Argument:
-                        print "Exception happened: ", Argument
-                        traceback.print_stack()
-    
-    try:
-        classes_list = range(categories_number)
-        print "\nThe total average precision score: "
-        print str(average_precision_score(label_binarize(true_values_arr[categories_number], classes_list),
-                                          label_binarize(score_values_arr[categories_number], classes_list)))
-        
-        for i in range(categories_number):
-            print str(classesHashtable.getClassName(i)) + " precision: "
-            print average_precision_score(true_values_arr[i], score_values_arr[i])
-            
-    except Exception, Argument:
-        print "Exception happened: ", Argument
-        traceback.print_stack()
 
 
 def main(args):
@@ -354,15 +278,6 @@ def main(args):
                 evaluating(arg, optlist['-r'], optlist['-c'], optlist['-d'])
                 sys.exit()
 
-            if opt == '-s':
-                if "-r" not in optlist or "-c" not in optlist or "-d" not in optlist:
-                    print "Usage: -s <evaluating_dir> -r <reference_vocab> -c <reference_classifier> -d <reference_dictionary>"
-                    sys.exit(2)
-                
-                get_precision_scores(arg, optlist['-r'], optlist['-c'], optlist['-d'])
-                sys.exit()
-
-                        
     except getopt.GetoptError, e:
         print str(e)
         sys.exit(2)
